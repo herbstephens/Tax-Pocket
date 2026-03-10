@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GTC Tax Pocket — Vanilla JS Example</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      background: #030712;
+      color: #f9fafb;
+      padding: 24px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    .sub { font-size: 11px; color: #4b5563; margin-bottom: 24px; }
+    .card {
+      background: #0a0f1a;
+      border: 1px solid #1e3a5f;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .label { font-size: 10px; color: #4b5563; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+    .amount { font-size: 26px; font-weight: 800; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #111827; font-size: 13px; }
+    .row:last-child { border-bottom: none; }
+    .green { color: #4ade80; }
+    .orange { color: #fb923c; }
+    .blue { color: #93c5fd; }
+    .gray { color: #6b7280; }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: #1d4ed8;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    button:hover { background: #1e40af; }
+    button.secondary {
+      background: transparent;
+      border: 1px solid #374151;
+      color: #9ca3af;
+    }
+    #log {
+      font-size: 11px;
+      color: #4b5563;
+      margin-top: 16px;
+      padding: 12px;
+      background: #0a0f1a;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      min-height: 80px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🏛️ GTC Tax Pocket</h1>
+<p class="sub">Vanilla JS demo — no framework required</p>
+
+<div class="card">
+  <div class="label">Tax Pocket Balance</div>
+  <div class="amount" id="totalBalance">0.00 USDC</div>
+  <div style="display:flex;gap:16px;margin-top:8px;font-size:12px">
+    <span class="blue" id="pendingDisplay">Pending: 0.00</span>
+    <span class="orange" id="confirmedDisplay">Confirmed: 0.00</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">Per Jurisdiction</div>
+  <div id="jurisdictionList">
+    <div class="gray" style="font-size:13px;padding:8px 0">No accruals yet.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">Simulate Transactions</div>
+  <button onclick="simulateLisbon()">+ Pay Café Lisboa (PT-11) — 100 USDC</button>
+  <button onclick="simulateBerlin()">+ Pay Berlin Tech GmbH (DE-BE) — 250 USDC</button>
+  <button onclick="simulateP2P()" class="secondary">+ Send to Friend (P2P) — 50 USDC</button>
+  <button onclick="simulateRefund()" class="secondary" id="refundBtn" disabled>↩ Refund Last Transaction</button>
+</div>
+
+<div class="card">
+  <div class="label">Remittance</div>
+  <div style="font-size:13px;color:#6b7280;margin-bottom:8px" id="nextDue">Next due: —</div>
+  <button onclick="simulateRemit()">Remit All Confirmed →</button>
+</div>
+
+<div id="log">// Events will appear here...</div>
+
+<script>
+// ─── Minimal Tax Pocket Implementation ───────────────────────────────────────
+
+const RATES = {
+  'PT-11': { local: 0.03, regional: 0.015, national: 0.005, global: 0.005 },
+  'DE-BE': { local: 0.02, regional: 0.02,  national: 0.007, global: 0.005 },
+  'US-CA': { local: 0.025, regional: 0.02, national: 0.006, global: 0.005 },
+};
+
+const LAYERS = [
+  { suffix: '', layer: 'local' },
+  { suffix: null, layer: 'regional' },  // parent
+  { suffix: null, layer: 'national' },  // country only
+  { id: 'GLOBAL', layer: 'global' },
+];
+
+const FLAGS = { PT: '🇵🇹', DE: '🇩🇪', US: '🇺🇸', GLOBAL: '🌐' };
+
+let pocket = {
+  accruals: [],
+  lastTxHash: null,
+};
+
+function getFlag(jId) {
+  if (jId === 'GLOBAL') return '🌐';
+  return FLAGS[jId.split('-')[0]] || '📍';
+}
+
+function buildJurisdictions(jId, rates) {
+  const parts = jId.split('-');
+  return [
+    { jId, rate: rates.local },
+    { jId: parts.slice(0,2).join('-'), rate: rates.regional },
+    { jId: parts[0], rate: rates.national },
+    { jId: 'GLOBAL', rate: rates.global },
+  ];
+}
+
+function accrue(jurisdictionId, amount, txHash) {
+  const rates = RATES[jurisdictionId];
+  const layers = buildJurisdictions(jurisdictionId, rates);
+  layers.forEach(({ jId, rate }) => {
+    pocket.accruals.push({
+      id: `acc_${Math.random().toString(36).slice(2,8)}`,
+      jurisdictionId: jId,
+      baseJurisdiction: jurisdictionId,
+      amount: +(amount * rate).toFixed(4),
+      grossAmount: +(amount * rate).toFixed(4),
+      state: 'pending',
+      txHash,
+    });
+  });
+  pocket.lastTxHash = txHash;
+}
+
+function refundLast() {
+  if (!pocket.lastTxHash) return;
+  pocket.accruals = pocket.accruals.map(a =>
+    a.txHash === pocket.lastTxHash
+      ? { ...a, state: 'voided', amount: 0 }
+      : a
+  );
+  pocket.lastTxHash = null;
+}
+
+function getBalance() {
+  const byJ = {};
+  let pending = 0, confirmed = 0;
+  pocket.accruals.forEach(a => {
+    if (a.state === 'voided' || a.state === 'remitted') return;
+    if (!byJ[a.jurisdictionId]) byJ[a.jurisdictionId] = { pending: 0, confirmed: 0 };
+    if (a.state === 'pending') { byJ[a.jurisdictionId].pending += a.amount; pending += a.amount; }
+    if (a.state === 'confirmed') { byJ[a.jurisdictionId].confirmed += a.amount; confirmed += a.amount; }
+  });
+  return { byJ, pending, confirmed, total: pending + confirmed };
+}
+
+function remitAll() {
+  pocket.accruals = pocket.accruals.map(a =>
+    (a.state === 'confirmed') ? { ...a, state: 'remitted' } : a
+  );
+}
+
+// ─── Simulations ──────────────────────────────────────────────────────────────
+
+function simulateLisbon() {
+  const txHash = '0x' + Math.random().toString(16).slice(2, 10);
+  accrue('PT-11', 100, txHash);
+  // Auto-confirm after 1s to show both states
+  setTimeout(() => {
+    pocket.accruals = pocket.accruals.map(a =>
+      a.txHash === txHash && a.state === 'pending' ? { ...a, state: 'confirmed' } : a
+    );
+    render();
+  }, 1200);
+  log(`💳 Paid 100 USDC to Café Lisboa (PT-11)\n   Tax accrued: ${(100 * 0.055).toFixed(2)} USDC → pending\n   Tx: ${txHash}`);
+  document.getElementById('refundBtn').disabled = false;
+  render();
+}
+
+function simulateBerlin() {
+  const txHash = '0x' + Math.random().toString(16).slice(2, 10);
+  accrue('DE-BE', 250, txHash);
+  setTimeout(() => {
+    pocket.accruals = pocket.accruals.map(a =>
+      a.txHash === txHash && a.state === 'pending' ? { ...a, state: 'confirmed' } : a
+    );
+    render();
+  }, 1200);
+  log(`💳 Paid 250 USDC to Berlin Tech GmbH (DE-BE)\n   Tax accrued: ${(250 * 0.052).toFixed(2)} USDC → pending\n   Tx: ${txHash}`);
+  document.getElementById('refundBtn').disabled = false;
+  render();
+}
+
+function simulateP2P() {
+  log(`🟢 Sent 50 USDC to friend\n   P2P — zero tax. Nothing added to pocket.`);
+}
+
+function simulateRefund() {
+  const last = pocket.lastTxHash;
+  refundLast();
+  log(`↩ Refunded transaction ${last}\n   All accruals for this tx → voided\n   Pocket balance reduced.`);
+  document.getElementById('refundBtn').disabled = true;
+  render();
+}
+
+function simulateRemit() {
+  const bal = getBalance();
+  if (bal.confirmed === 0) {
+    log('⚠️  Nothing confirmed to remit.\n   Pending accruals need to be confirmed first.');
+    return;
+  }
+  const amount = bal.confirmed.toFixed(2);
+  remitAll();
+  log(`✅ Remitted ${amount} USDC to jurisdiction vaults\n   Receipt NFT minted\n   Confirmed balance → cleared`);
+  render();
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+
+function render() {
+  const { byJ, pending, confirmed, total } = getBalance();
+
+  document.getElementById('totalBalance').textContent = `${total.toFixed(2)} USDC`;
+  document.getElementById('pendingDisplay').textContent = `Pending: ${pending.toFixed(2)}`;
+  document.getElementById('confirmedDisplay').textContent = `Confirmed: ${confirmed.toFixed(2)}`;
+
+  const list = document.getElementById('jurisdictionList');
+  const entries = Object.entries(byJ);
+
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="gray" style="font-size:13px;padding:8px 0">No accruals yet.</div>';
+  } else {
+    list.innerHTML = entries.map(([jId, bal]) => {
+      const t = (bal.pending + bal.confirmed).toFixed(2);
+      return `<div class="row">
+        <span>${getFlag(jId)} ${jId}</span>
+        <span>
+          <span class="blue">${bal.pending.toFixed(2)}</span>
+          + <span class="orange">${bal.confirmed.toFixed(2)}</span>
+          = <strong>${t}</strong>
+        </span>
+      </div>`;
+    }).join('');
+  }
+
+  // Fake next due date
+  const due = new Date();
+  due.setMonth(due.getMonth() + (due.getMonth() < 3 ? 0 : 3));
+  due.setDate(new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate());
+  const days = Math.ceil((due - Date.now()) / 86400000);
+  document.getElementById('nextDue').textContent =
+    `Next due: ${due.toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})} (${days}d)`;
+}
+
+let logLines = [];
+function log(msg) {
+  logLines.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
+  if (logLines.length > 6) logLines.pop();
+  document.getElementById('log').textContent = logLines.join('\n\n');
+}
+
+render();
+</script>
+</body>
+</html>

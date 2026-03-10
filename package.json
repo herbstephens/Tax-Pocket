@@ -1,0 +1,65 @@
+{
+  "name": "@gtc/tax-pocket",
+  "version": "0.1.0",
+  "description": "GTC Tax Pocket — self-custody tax escrow for digital wallets",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/global-tax-clearinghouse/gtc-tax-pocket"
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./ui": {
+      "import": "./dist/ui/index.esm.js",
+      "types": "./dist/ui/index.d.ts"
+    },
+    "./ui/native": {
+      "import": "./dist/ui/native/index.esm.js",
+      "types": "./dist/ui/native/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build":        "tsup",
+    "dev":          "tsup --watch",
+    "test":         "vitest run",
+    "test:watch":   "vitest",
+    "test:contract":"npx hardhat test",
+    "lint":         "eslint sdk/src --ext .ts,.tsx",
+    "typecheck":    "tsc --noEmit",
+    "compile":      "npx hardhat compile",
+    "coverage":     "npx hardhat coverage"
+  },
+  "peerDependencies": {
+    "ethers": "^5.7.0",
+    "react": ">=17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  },
+  "dependencies": {
+    "ethers": "^5.7.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@account-abstraction/contracts": "^0.7.0",
+    "@types/react": "^18.0.0",
+    "hardhat": "^2.22.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "react": "^18.0.0"
+  },
+  "keywords": [
+    "tax", "blockchain", "wallet", "escrow", "gtc",
+    "global-tax-clearinghouse", "vat", "defi",
+    "self-custody", "tax-pocket"
+  ]
+}
